@@ -1,0 +1,558 @@
+<!doctype html>
+<html>
+    <head>
+        <title>backgroundCube</title>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css"
+        />
+        <link rel="stylesheet" href="./style.css" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/glsl.min.js"></script>
+
+        <script>
+            hljs.highlightAll();
+        </script>
+
+        <!-- define symbol in hidden svg document -->
+        <svg style="display: none" version="2.0">
+            <defs>
+                <symbol id="code" viewBox="0 -960 960 960">
+                    <path
+                        d="M320-240 80-480l240-240 57 57-184 184 183 183-56 56Zm320 0-57-57 184-184-183-183 56-56 240 240-240 240Z"
+                    />
+                </symbol>
+                <symbol id="code_off" viewBox="0 -960 960 960">
+                    <path
+                        d="M791-55 280-566l-87 87 183 183-56 56L80-480l143-143L55-791l57-57 736 736-57 57Zm-54-282-57-57 87-87-183-183 56-56 240 240-143 143Z"
+                    />
+                </symbol>
+            </defs>
+            <!-- to make the circle-arrow-left.svg file
+               also usable as image: -->
+            <use href="#circle-arrow-left" />
+        </svg>
+    </head>
+    <body>
+        <nav>
+    <a class="indexLink"
+    href="./index.html"
+        ><svg
+            xmlns="http://www.w3.org/2000/svg"
+            height="24px"
+            viewBox="0 -960 960 960"
+            width="24px"
+            fill="currentColor"
+        >
+            <path
+                d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"
+            /></svg
+    ></a>
+    <ul>
+    <li
+      
+      ><a href="./background.html">background</a></li><li
+      class="selected"
+      ><a href="./backgroundCube.html">backgroundCube</a></li><li
+      
+      ><a href="./cube.html">cube</a></li><li
+      
+      ><a href="./depth.html">depth</a></li><li
+      
+      ><a href="./distanceRGBA.html">distanceRGBA</a></li><li
+      
+      ><a href="./equirect.html">equirect</a></li><li
+      
+      ><a href="./linedashed.html">linedashed</a></li><li
+      
+      ><a href="./meshbasic.html">meshbasic</a></li><li
+      
+      ><a href="./meshlambert.html">meshlambert</a></li><li
+      
+      ><a href="./meshmatcap.html">meshmatcap</a></li><li
+      
+      ><a href="./meshnormal.html">meshnormal</a></li><li
+      
+      ><a href="./meshphong.html">meshphong</a></li><li
+      
+      ><a href="./meshphysical.html">meshphysical</a></li><li
+      
+      ><a href="./meshtoon.html">meshtoon</a></li><li
+      
+      ><a href="./points.html">points</a></li><li
+      
+      ><a href="./shadow.html">shadow</a></li><li
+      
+      ><a href="./sprite.html">sprite</a></li><li
+      
+      ><a href="./vsm.html">vsm</a></li>
+    </ul>
+    <a
+    class="otherChunksLink"
+    href="./otherChunks.html">Other Chunks</a>
+  </nav></nav>
+        <article>
+            <h1>backgroundCube.glsl.js</h1>
+            <section class="shader">
+                <h2 title="expand all">
+                    Vertex Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">
+varying vec3 vWorldDirection;
+
+</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;common&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;common&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#define PI 3.141592653589793
+#define PI2 6.283185307179586
+#define PI_HALF 1.5707963267948966
+#define RECIPROCAL_PI 0.3183098861837907
+#define RECIPROCAL_PI2 0.15915494309189535
+#define EPSILON 1e-6
+
+#ifndef saturate
+// &lt;tonemapping_pars_fragment&gt; may have defined saturate() already
+#define saturate( a ) clamp( a, 0.0, 1.0 )
+#endif
+#define whiteComplement( a ) ( 1.0 - saturate( a ) )
+
+float pow2( const in float x ) { return x*x; }
+vec3 pow2( const in vec3 x ) { return x*x; }
+float pow3( const in float x ) { return x*x*x; }
+float pow4( const in float x ) { float x2 = x*x; return x2*x2; }
+float max3( const in vec3 v ) { return max( max( v.x, v.y ), v.z ); }
+float average( const in vec3 v ) { return dot( v, vec3( 0.3333333 ) ); }
+
+// expects values in the range of [0,1]x[0,1], returns values in the [0,1] range.
+// do not collapse into a single function per: http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
+highp float rand( const in vec2 uv ) {
+
+	const highp float a = 12.9898, b = 78.233, c = 43758.5453;
+	highp float dt = dot( uv.xy, vec2( a,b ) ), sn = mod( dt, PI );
+
+	return fract( sin( sn ) * c );
+
+}
+
+#ifdef HIGH_PRECISION
+	float precisionSafeLength( vec3 v ) { return length( v ); }
+#else
+	float precisionSafeLength( vec3 v ) {
+		float maxComponent = max3( abs( v ) );
+		return length( v / maxComponent ) * maxComponent;
+	}
+#endif
+
+struct IncidentLight {
+	vec3 color;
+	vec3 direction;
+	bool visible;
+};
+
+struct ReflectedLight {
+	vec3 directDiffuse;
+	vec3 directSpecular;
+	vec3 indirectDiffuse;
+	vec3 indirectSpecular;
+};
+
+#ifdef USE_ALPHAHASH
+
+	varying vec3 vPosition;
+
+#endif
+
+vec3 transformDirection( in vec3 dir, in mat4 matrix ) {
+
+	return normalize( ( matrix * vec4( dir, 0.0 ) ).xyz );
+
+}
+
+vec3 inverseTransformDirection( in vec3 dir, in mat4 matrix ) {
+
+	// dir can be either a direction vector or a normal vector
+	// upper-left 3x3 of matrix is assumed to be orthogonal
+
+	return normalize( ( vec4( dir, 0.0 ) * matrix ).xyz );
+
+}
+
+mat3 transposeMat3( const in mat3 m ) {
+
+	mat3 tmp;
+
+	tmp[ 0 ] = vec3( m[ 0 ].x, m[ 1 ].x, m[ 2 ].x );
+	tmp[ 1 ] = vec3( m[ 0 ].y, m[ 1 ].y, m[ 2 ].y );
+	tmp[ 2 ] = vec3( m[ 0 ].z, m[ 1 ].z, m[ 2 ].z );
+
+	return tmp;
+
+}
+
+bool isPerspectiveMatrix( mat4 m ) {
+
+	return m[ 2 ][ 3 ] == - 1.0;
+
+}
+
+vec2 equirectUv( in vec3 dir ) {
+
+	// dir is assumed to be unit length
+
+	float u = atan( dir.z, dir.x ) * RECIPROCAL_PI2 + 0.5;
+
+	float v = asin( clamp( dir.y, - 1.0, 1.0 ) ) * RECIPROCAL_PI + 0.5;
+
+	return vec2( u, v );
+
+}
+
+vec3 BRDF_Lambert( const in vec3 diffuseColor ) {
+
+	return RECIPROCAL_PI * diffuseColor;
+
+} // validated
+
+vec3 F_Schlick( const in vec3 f0, const in float f90, const in float dotVH ) {
+
+	// Original approximation by Christophe Schlick &#039;94
+	// float fresnel = pow( 1.0 - dotVH, 5.0 );
+
+	// Optimized variant (presented by Epic at SIGGRAPH &#039;13)
+	// https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+	float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
+
+	return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
+
+} // validated
+
+float F_Schlick( const in float f0, const in float f90, const in float dotVH ) {
+
+	// Original approximation by Christophe Schlick &#039;94
+	// float fresnel = pow( 1.0 - dotVH, 5.0 );
+
+	// Optimized variant (presented by Epic at SIGGRAPH &#039;13)
+	// https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+	float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
+
+	return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
+
+} // validated</code></pre>
+    </div><pre><code class="language-glsl">
+
+void main() {
+
+	vWorldDirection = transformDirection( position, modelMatrix );
+
+	</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;begin_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;begin_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">vec3 transformed = vec3( position );
+
+#ifdef USE_ALPHAHASH
+
+	vPosition = vec3( position );
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;project_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;project_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">vec4 mvPosition = vec4( transformed, 1.0 );
+
+#ifdef USE_BATCHING
+
+	mvPosition = batchingMatrix * mvPosition;
+
+#endif
+
+#ifdef USE_INSTANCING
+
+	mvPosition = instanceMatrix * mvPosition;
+
+#endif
+
+mvPosition = modelViewMatrix * mvPosition;
+
+gl_Position = projectionMatrix * mvPosition;</code></pre>
+    </div><pre><code class="language-glsl">
+
+	gl_Position.z = gl_Position.w; // set z to camera.far
+
+}
+</code></pre>
+                </div>
+            </section>
+            <section class="shader">
+                <h2 title="expand all">
+                    Fragment Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">
+
+#ifdef ENVMAP_TYPE_CUBE
+
+	uniform samplerCube envMap;
+
+#elif defined( ENVMAP_TYPE_CUBE_UV )
+
+	uniform sampler2D envMap;
+
+#endif
+
+uniform float flipEnvMap;
+uniform float backgroundBlurriness;
+uniform float backgroundIntensity;
+uniform mat3 backgroundRotation;
+
+varying vec3 vWorldDirection;
+
+</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;cube_uv_reflection_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;cube_uv_reflection_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef ENVMAP_TYPE_CUBE_UV
+
+	#define cubeUV_minMipLevel 4.0
+	#define cubeUV_minTileSize 16.0
+
+	// These shader functions convert between the UV coordinates of a single face of
+	// a cubemap, the 0-5 integer index of a cube face, and the direction vector for
+	// sampling a textureCube (not generally normalized ).
+
+	float getFace( vec3 direction ) {
+
+		vec3 absDirection = abs( direction );
+
+		float face = - 1.0;
+
+		if ( absDirection.x &gt; absDirection.z ) {
+
+			if ( absDirection.x &gt; absDirection.y )
+
+				face = direction.x &gt; 0.0 ? 0.0 : 3.0;
+
+			else
+
+				face = direction.y &gt; 0.0 ? 1.0 : 4.0;
+
+		} else {
+
+			if ( absDirection.z &gt; absDirection.y )
+
+				face = direction.z &gt; 0.0 ? 2.0 : 5.0;
+
+			else
+
+				face = direction.y &gt; 0.0 ? 1.0 : 4.0;
+
+		}
+
+		return face;
+
+	}
+
+	// RH coordinate system; PMREM face-indexing convention
+	vec2 getUV( vec3 direction, float face ) {
+
+		vec2 uv;
+
+		if ( face == 0.0 ) {
+
+			uv = vec2( direction.z, direction.y ) / abs( direction.x ); // pos x
+
+		} else if ( face == 1.0 ) {
+
+			uv = vec2( - direction.x, - direction.z ) / abs( direction.y ); // pos y
+
+		} else if ( face == 2.0 ) {
+
+			uv = vec2( - direction.x, direction.y ) / abs( direction.z ); // pos z
+
+		} else if ( face == 3.0 ) {
+
+			uv = vec2( - direction.z, direction.y ) / abs( direction.x ); // neg x
+
+		} else if ( face == 4.0 ) {
+
+			uv = vec2( - direction.x, direction.z ) / abs( direction.y ); // neg y
+
+		} else {
+
+			uv = vec2( direction.x, direction.y ) / abs( direction.z ); // neg z
+
+		}
+
+		return 0.5 * ( uv + 1.0 );
+
+	}
+
+	vec3 bilinearCubeUV( sampler2D envMap, vec3 direction, float mipInt ) {
+
+		float face = getFace( direction );
+
+		float filterInt = max( cubeUV_minMipLevel - mipInt, 0.0 );
+
+		mipInt = max( mipInt, cubeUV_minMipLevel );
+
+		float faceSize = exp2( mipInt );
+
+		highp vec2 uv = getUV( direction, face ) * ( faceSize - 2.0 ) + 1.0; // #25071
+
+		if ( face &gt; 2.0 ) {
+
+			uv.y += faceSize;
+
+			face -= 3.0;
+
+		}
+
+		uv.x += face * faceSize;
+
+		uv.x += filterInt * 3.0 * cubeUV_minTileSize;
+
+		uv.y += 4.0 * ( exp2( CUBEUV_MAX_MIP ) - faceSize );
+
+		uv.x *= CUBEUV_TEXEL_WIDTH;
+		uv.y *= CUBEUV_TEXEL_HEIGHT;
+
+		#ifdef texture2DGradEXT
+
+			return texture2DGradEXT( envMap, uv, vec2( 0.0 ), vec2( 0.0 ) ).rgb; // disable anisotropic filtering
+
+		#else
+
+			return texture2D( envMap, uv ).rgb;
+
+		#endif
+
+	}
+
+	// These defines must match with PMREMGenerator
+
+	#define cubeUV_r0 1.0
+	#define cubeUV_m0 - 2.0
+	#define cubeUV_r1 0.8
+	#define cubeUV_m1 - 1.0
+	#define cubeUV_r4 0.4
+	#define cubeUV_m4 2.0
+	#define cubeUV_r5 0.305
+	#define cubeUV_m5 3.0
+	#define cubeUV_r6 0.21
+	#define cubeUV_m6 4.0
+
+	float roughnessToMip( float roughness ) {
+
+		float mip = 0.0;
+
+		if ( roughness &gt;= cubeUV_r1 ) {
+
+			mip = ( cubeUV_r0 - roughness ) * ( cubeUV_m1 - cubeUV_m0 ) / ( cubeUV_r0 - cubeUV_r1 ) + cubeUV_m0;
+
+		} else if ( roughness &gt;= cubeUV_r4 ) {
+
+			mip = ( cubeUV_r1 - roughness ) * ( cubeUV_m4 - cubeUV_m1 ) / ( cubeUV_r1 - cubeUV_r4 ) + cubeUV_m1;
+
+		} else if ( roughness &gt;= cubeUV_r5 ) {
+
+			mip = ( cubeUV_r4 - roughness ) * ( cubeUV_m5 - cubeUV_m4 ) / ( cubeUV_r4 - cubeUV_r5 ) + cubeUV_m4;
+
+		} else if ( roughness &gt;= cubeUV_r6 ) {
+
+			mip = ( cubeUV_r5 - roughness ) * ( cubeUV_m6 - cubeUV_m5 ) / ( cubeUV_r5 - cubeUV_r6 ) + cubeUV_m5;
+
+		} else {
+
+			mip = - 2.0 * log2( 1.16 * roughness ); // 1.16 = 1.79^0.25
+		}
+
+		return mip;
+
+	}
+
+	vec4 textureCubeUV( sampler2D envMap, vec3 sampleDir, float roughness ) {
+
+		float mip = clamp( roughnessToMip( roughness ), cubeUV_m0, CUBEUV_MAX_MIP );
+
+		float mipF = fract( mip );
+
+		float mipInt = floor( mip );
+
+		vec3 color0 = bilinearCubeUV( envMap, sampleDir, mipInt );
+
+		if ( mipF == 0.0 ) {
+
+			return vec4( color0, 1.0 );
+
+		} else {
+
+			vec3 color1 = bilinearCubeUV( envMap, sampleDir, mipInt + 1.0 );
+
+			return vec4( mix( color0, color1, mipF ), 1.0 );
+
+		}
+
+	}
+
+#endif</code></pre>
+    </div><pre><code class="language-glsl">
+
+void main() {
+
+	#ifdef ENVMAP_TYPE_CUBE
+
+		vec4 texColor = textureCube( envMap, backgroundRotation * vec3( flipEnvMap * vWorldDirection.x, vWorldDirection.yz ) );
+
+	#elif defined( ENVMAP_TYPE_CUBE_UV )
+
+		vec4 texColor = textureCubeUV( envMap, backgroundRotation * vWorldDirection, backgroundBlurriness );
+
+	#else
+
+		vec4 texColor = vec4( 0.0, 0.0, 0.0, 1.0 );
+
+	#endif
+
+	texColor.rgb *= backgroundIntensity;
+
+	gl_FragColor = texColor;
+
+	</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;tonemapping_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;tonemapping_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#if defined( TONE_MAPPING )
+
+	gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;colorspace_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;colorspace_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">gl_FragColor = linearToOutputTexel( gl_FragColor );</code></pre>
+    </div><pre><code class="language-glsl">
+
+}
+</code></pre>
+                </div>
+            </section>
+        </article>
+        <script src="./script.js"></script>
+    </body>
+</html>

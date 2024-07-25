@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+    <head>
+        <title>{{title}}</title>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css"
+        />
+        <link rel="stylesheet" href="./style.css" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/glsl.min.js"></script>
+
+        <script>
+            hljs.highlightAll();
+        </script>
+
+        <!-- define symbol in hidden svg document -->
+        <svg style="display: none" version="2.0">
+            <defs>
+                <symbol id="code" viewBox="0 -960 960 960">
+                    <path
+                        d="M320-240 80-480l240-240 57 57-184 184 183 183-56 56Zm320 0-57-57 184-184-183-183 56-56 240 240-240 240Z"
+                    />
+                </symbol>
+                <symbol id="code_off" viewBox="0 -960 960 960">
+                    <path
+                        d="M791-55 280-566l-87 87 183 183-56 56L80-480l143-143L55-791l57-57 736 736-57 57Zm-54-282-57-57 87-87-183-183 56-56 240 240-143 143Z"
+                    />
+                </symbol>
+            </defs>
+            <!-- to make the circle-arrow-left.svg file
+               also usable as image: -->
+            <use href="#circle-arrow-left" />
+        </svg>
+    </head>
+    <body>
+        <nav>{{nav}}</nav>
+        <article>
+            <h1>{{file}}</h1>
+            <section class="shader">
+                <h2 title="expand all">
+                    Vertex Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">{{vertexContent}}</code></pre>
+                </div>
+            </section>
+            <section class="shader">
+                <h2 title="expand all">
+                    Fragment Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">{{fragmentContent}}</code></pre>
+                </div>
+            </section>
+        </article>
+        <script src="./script.js"></script>
+    </body>
+</html>

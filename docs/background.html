@@ -1,0 +1,181 @@
+<!doctype html>
+<html>
+    <head>
+        <title>background</title>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css"
+        />
+        <link rel="stylesheet" href="./style.css" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/glsl.min.js"></script>
+
+        <script>
+            hljs.highlightAll();
+        </script>
+
+        <!-- define symbol in hidden svg document -->
+        <svg style="display: none" version="2.0">
+            <defs>
+                <symbol id="code" viewBox="0 -960 960 960">
+                    <path
+                        d="M320-240 80-480l240-240 57 57-184 184 183 183-56 56Zm320 0-57-57 184-184-183-183 56-56 240 240-240 240Z"
+                    />
+                </symbol>
+                <symbol id="code_off" viewBox="0 -960 960 960">
+                    <path
+                        d="M791-55 280-566l-87 87 183 183-56 56L80-480l143-143L55-791l57-57 736 736-57 57Zm-54-282-57-57 87-87-183-183 56-56 240 240-143 143Z"
+                    />
+                </symbol>
+            </defs>
+            <!-- to make the circle-arrow-left.svg file
+               also usable as image: -->
+            <use href="#circle-arrow-left" />
+        </svg>
+    </head>
+    <body>
+        <nav>
+    <a class="indexLink"
+    href="./index.html"
+        ><svg
+            xmlns="http://www.w3.org/2000/svg"
+            height="24px"
+            viewBox="0 -960 960 960"
+            width="24px"
+            fill="currentColor"
+        >
+            <path
+                d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"
+            /></svg
+    ></a>
+    <ul>
+    <li
+      class="selected"
+      ><a href="./background.html">background</a></li><li
+      
+      ><a href="./backgroundCube.html">backgroundCube</a></li><li
+      
+      ><a href="./cube.html">cube</a></li><li
+      
+      ><a href="./depth.html">depth</a></li><li
+      
+      ><a href="./distanceRGBA.html">distanceRGBA</a></li><li
+      
+      ><a href="./equirect.html">equirect</a></li><li
+      
+      ><a href="./linedashed.html">linedashed</a></li><li
+      
+      ><a href="./meshbasic.html">meshbasic</a></li><li
+      
+      ><a href="./meshlambert.html">meshlambert</a></li><li
+      
+      ><a href="./meshmatcap.html">meshmatcap</a></li><li
+      
+      ><a href="./meshnormal.html">meshnormal</a></li><li
+      
+      ><a href="./meshphong.html">meshphong</a></li><li
+      
+      ><a href="./meshphysical.html">meshphysical</a></li><li
+      
+      ><a href="./meshtoon.html">meshtoon</a></li><li
+      
+      ><a href="./points.html">points</a></li><li
+      
+      ><a href="./shadow.html">shadow</a></li><li
+      
+      ><a href="./sprite.html">sprite</a></li><li
+      
+      ><a href="./vsm.html">vsm</a></li>
+    </ul>
+    <a
+    class="otherChunksLink"
+    href="./otherChunks.html">Other Chunks</a>
+  </nav></nav>
+        <article>
+            <h1>background.glsl.js</h1>
+            <section class="shader">
+                <h2 title="expand all">
+                    Vertex Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">
+varying vec2 vUv;
+uniform mat3 uvTransform;
+
+void main() {
+
+	vUv = ( uvTransform * vec3( uv, 1 ) ).xy;
+
+	gl_Position = vec4( position.xy, 1.0, 1.0 );
+
+}
+</code></pre>
+                </div>
+            </section>
+            <section class="shader">
+                <h2 title="expand all">
+                    Fragment Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">
+uniform sampler2D t2D;
+uniform float backgroundIntensity;
+
+varying vec2 vUv;
+
+void main() {
+
+	vec4 texColor = texture2D( t2D, vUv );
+
+	#ifdef DECODE_VIDEO_TEXTURE
+
+		// use inline sRGB decode until browsers properly support SRGB8_APLHA8 with video textures
+
+		texColor = vec4( mix( pow( texColor.rgb * 0.9478672986 + vec3( 0.0521327014 ), vec3( 2.4 ) ), texColor.rgb * 0.0773993808, vec3( lessThanEqual( texColor.rgb, vec3( 0.04045 ) ) ) ), texColor.w );
+
+	#endif
+
+	texColor.rgb *= backgroundIntensity;
+
+	gl_FragColor = texColor;
+
+	</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;tonemapping_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;tonemapping_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#if defined( TONE_MAPPING )
+
+	gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;colorspace_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;colorspace_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">gl_FragColor = linearToOutputTexel( gl_FragColor );</code></pre>
+    </div><pre><code class="language-glsl">
+
+}
+</code></pre>
+                </div>
+            </section>
+        </article>
+        <script src="./script.js"></script>
+    </body>
+</html>

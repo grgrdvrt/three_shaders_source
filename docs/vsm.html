@@ -1,0 +1,284 @@
+<!doctype html>
+<html>
+    <head>
+        <title>vsm</title>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css"
+        />
+        <link rel="stylesheet" href="./style.css" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/glsl.min.js"></script>
+
+        <script>
+            hljs.highlightAll();
+        </script>
+
+        <!-- define symbol in hidden svg document -->
+        <svg style="display: none" version="2.0">
+            <defs>
+                <symbol id="code" viewBox="0 -960 960 960">
+                    <path
+                        d="M320-240 80-480l240-240 57 57-184 184 183 183-56 56Zm320 0-57-57 184-184-183-183 56-56 240 240-240 240Z"
+                    />
+                </symbol>
+                <symbol id="code_off" viewBox="0 -960 960 960">
+                    <path
+                        d="M791-55 280-566l-87 87 183 183-56 56L80-480l143-143L55-791l57-57 736 736-57 57Zm-54-282-57-57 87-87-183-183 56-56 240 240-143 143Z"
+                    />
+                </symbol>
+            </defs>
+            <!-- to make the circle-arrow-left.svg file
+               also usable as image: -->
+            <use href="#circle-arrow-left" />
+        </svg>
+    </head>
+    <body>
+        <nav>
+    <a class="indexLink"
+    href="./index.html"
+        ><svg
+            xmlns="http://www.w3.org/2000/svg"
+            height="24px"
+            viewBox="0 -960 960 960"
+            width="24px"
+            fill="currentColor"
+        >
+            <path
+                d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"
+            /></svg
+    ></a>
+    <ul>
+    <li
+      
+      ><a href="./background.html">background</a></li><li
+      
+      ><a href="./backgroundCube.html">backgroundCube</a></li><li
+      
+      ><a href="./cube.html">cube</a></li><li
+      
+      ><a href="./depth.html">depth</a></li><li
+      
+      ><a href="./distanceRGBA.html">distanceRGBA</a></li><li
+      
+      ><a href="./equirect.html">equirect</a></li><li
+      
+      ><a href="./linedashed.html">linedashed</a></li><li
+      
+      ><a href="./meshbasic.html">meshbasic</a></li><li
+      
+      ><a href="./meshlambert.html">meshlambert</a></li><li
+      
+      ><a href="./meshmatcap.html">meshmatcap</a></li><li
+      
+      ><a href="./meshnormal.html">meshnormal</a></li><li
+      
+      ><a href="./meshphong.html">meshphong</a></li><li
+      
+      ><a href="./meshphysical.html">meshphysical</a></li><li
+      
+      ><a href="./meshtoon.html">meshtoon</a></li><li
+      
+      ><a href="./points.html">points</a></li><li
+      
+      ><a href="./shadow.html">shadow</a></li><li
+      
+      ><a href="./sprite.html">sprite</a></li><li
+      class="selected"
+      ><a href="./vsm.html">vsm</a></li>
+    </ul>
+    <a
+    class="otherChunksLink"
+    href="./otherChunks.html">Other Chunks</a>
+  </nav></nav>
+        <article>
+            <h1>vsm.glsl.js</h1>
+            <section class="shader">
+                <h2 title="expand all">
+                    Vertex Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">
+void main() {
+
+	gl_Position = vec4( position, 1.0 );
+
+}
+</code></pre>
+                </div>
+            </section>
+            <section class="shader">
+                <h2 title="expand all">
+                    Fragment Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">
+uniform sampler2D shadow_pass;
+uniform vec2 resolution;
+uniform float radius;
+
+</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;packing&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;packing&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">vec3 packNormalToRGB( const in vec3 normal ) {
+	return normalize( normal ) * 0.5 + 0.5;
+}
+
+vec3 unpackRGBToNormal( const in vec3 rgb ) {
+	return 2.0 * rgb.xyz - 1.0;
+}
+
+const float PackUpscale = 256. / 255.; // fraction -&gt; 0..1 (including 1)
+const float UnpackDownscale = 255. / 256.; // 0..1 -&gt; fraction (excluding 1)
+const float ShiftRight8 = 1. / 256.;
+const float Inv255 = 1. / 255.;
+
+const vec4 PackFactors = vec4( 1.0, 256.0, 256.0 * 256.0, 256.0 * 256.0 * 256.0 );
+
+const vec2 UnpackFactors2 = vec2( UnpackDownscale, 1.0 / PackFactors.g );
+const vec3 UnpackFactors3 = vec3( UnpackDownscale / PackFactors.rg, 1.0 / PackFactors.b );
+const vec4 UnpackFactors4 = vec4( UnpackDownscale / PackFactors.rgb, 1.0 / PackFactors.a );
+
+vec4 packDepthToRGBA( const in float v ) {
+	if( v &lt;= 0.0 )
+		return vec4( 0., 0., 0., 0. );
+	if( v &gt;= 1.0 )
+		return vec4( 1., 1., 1., 1. );
+	float vuf;
+	float af = modf( v * PackFactors.a, vuf );
+	float bf = modf( vuf * ShiftRight8, vuf );
+	float gf = modf( vuf * ShiftRight8, vuf );
+	return vec4( vuf * Inv255, gf * PackUpscale, bf * PackUpscale, af );
+}
+
+vec3 packDepthToRGB( const in float v ) {
+	if( v &lt;= 0.0 )
+		return vec3( 0., 0., 0. );
+	if( v &gt;= 1.0 )
+		return vec3( 1., 1., 1. );
+	float vuf;
+	float bf = modf( v * PackFactors.b, vuf );
+	float gf = modf( vuf * ShiftRight8, vuf );
+	// the 0.9999 tweak is unimportant, very tiny empirical improvement
+	// return vec3( vuf * Inv255, gf * PackUpscale, bf * 0.9999 );
+	return vec3( vuf * Inv255, gf * PackUpscale, bf );
+}
+
+vec2 packDepthToRG( const in float v ) {
+	if( v &lt;= 0.0 )
+		return vec2( 0., 0. );
+	if( v &gt;= 1.0 )
+		return vec2( 1., 1. );
+	float vuf;
+	float gf = modf( v * 256., vuf );
+	return vec2( vuf * Inv255, gf );
+}
+
+float unpackRGBAToDepth( const in vec4 v ) {
+	return dot( v, UnpackFactors4 );
+}
+
+float unpackRGBToDepth( const in vec3 v ) {
+	return dot( v, UnpackFactors3 );
+}
+
+float unpackRGToDepth( const in vec2 v ) {
+	return v.r * UnpackFactors2.r + v.g * UnpackFactors2.g;
+}
+
+vec4 pack2HalfToRGBA( const in vec2 v ) {
+	vec4 r = vec4( v.x, fract( v.x * 255.0 ), v.y, fract( v.y * 255.0 ) );
+	return vec4( r.x - r.y / 255.0, r.y, r.z - r.w / 255.0, r.w );
+}
+
+vec2 unpackRGBATo2Half( const in vec4 v ) {
+	return vec2( v.x + ( v.y / 255.0 ), v.z + ( v.w / 255.0 ) );
+}
+
+// NOTE: viewZ, the z-coordinate in camera space, is negative for points in front of the camera
+
+float viewZToOrthographicDepth( const in float viewZ, const in float near, const in float far ) {
+	// -near maps to 0; -far maps to 1
+	return ( viewZ + near ) / ( near - far );
+}
+
+float orthographicDepthToViewZ( const in float depth, const in float near, const in float far ) {
+	// maps orthographic depth in [ 0, 1 ] to viewZ
+	return depth * ( near - far ) - near;
+}
+
+// NOTE: https://twitter.com/gonnavis/status/1377183786949959682
+
+float viewZToPerspectiveDepth( const in float viewZ, const in float near, const in float far ) {
+	// -near maps to 0; -far maps to 1
+	return ( ( near + viewZ ) * far ) / ( ( far - near ) * viewZ );
+}
+
+float perspectiveDepthToViewZ( const in float depth, const in float near, const in float far ) {
+	// maps perspective depth in [ 0, 1 ] to viewZ
+	return ( near * far ) / ( ( far - near ) * depth - far );
+}</code></pre>
+    </div><pre><code class="language-glsl">
+
+void main() {
+
+	const float samples = float( VSM_SAMPLES );
+
+	float mean = 0.0;
+	float squared_mean = 0.0;
+
+	float uvStride = samples &lt;= 1.0 ? 0.0 : 2.0 / ( samples - 1.0 );
+	float uvStart = samples &lt;= 1.0 ? 0.0 : - 1.0;
+	for ( float i = 0.0; i &lt; samples; i ++ ) {
+
+		float uvOffset = uvStart + i * uvStride;
+
+		#ifdef HORIZONTAL_PASS
+
+			vec2 distribution = unpackRGBATo2Half( texture2D( shadow_pass, ( gl_FragCoord.xy + vec2( uvOffset, 0.0 ) * radius ) / resolution ) );
+			mean += distribution.x;
+			squared_mean += distribution.y * distribution.y + distribution.x * distribution.x;
+
+		#else
+
+			float depth = unpackRGBAToDepth( texture2D( shadow_pass, ( gl_FragCoord.xy + vec2( 0.0, uvOffset ) * radius ) / resolution ) );
+			mean += depth;
+			squared_mean += depth * depth;
+
+		#endif
+
+	}
+
+	mean = mean / samples;
+	squared_mean = squared_mean / samples;
+
+	float std_dev = sqrt( squared_mean - mean * mean );
+
+	gl_FragColor = pack2HalfToRGBA( vec2( mean, std_dev ) );
+
+}
+</code></pre>
+                </div>
+            </section>
+        </article>
+        <script src="./script.js"></script>
+    </body>
+</html>

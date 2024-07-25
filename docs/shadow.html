@@ -1,0 +1,1754 @@
+<!doctype html>
+<html>
+    <head>
+        <title>shadow</title>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css"
+        />
+        <link rel="stylesheet" href="./style.css" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/glsl.min.js"></script>
+
+        <script>
+            hljs.highlightAll();
+        </script>
+
+        <!-- define symbol in hidden svg document -->
+        <svg style="display: none" version="2.0">
+            <defs>
+                <symbol id="code" viewBox="0 -960 960 960">
+                    <path
+                        d="M320-240 80-480l240-240 57 57-184 184 183 183-56 56Zm320 0-57-57 184-184-183-183 56-56 240 240-240 240Z"
+                    />
+                </symbol>
+                <symbol id="code_off" viewBox="0 -960 960 960">
+                    <path
+                        d="M791-55 280-566l-87 87 183 183-56 56L80-480l143-143L55-791l57-57 736 736-57 57Zm-54-282-57-57 87-87-183-183 56-56 240 240-143 143Z"
+                    />
+                </symbol>
+            </defs>
+            <!-- to make the circle-arrow-left.svg file
+               also usable as image: -->
+            <use href="#circle-arrow-left" />
+        </svg>
+    </head>
+    <body>
+        <nav>
+    <a class="indexLink"
+    href="./index.html"
+        ><svg
+            xmlns="http://www.w3.org/2000/svg"
+            height="24px"
+            viewBox="0 -960 960 960"
+            width="24px"
+            fill="currentColor"
+        >
+            <path
+                d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"
+            /></svg
+    ></a>
+    <ul>
+    <li
+      
+      ><a href="./background.html">background</a></li><li
+      
+      ><a href="./backgroundCube.html">backgroundCube</a></li><li
+      
+      ><a href="./cube.html">cube</a></li><li
+      
+      ><a href="./depth.html">depth</a></li><li
+      
+      ><a href="./distanceRGBA.html">distanceRGBA</a></li><li
+      
+      ><a href="./equirect.html">equirect</a></li><li
+      
+      ><a href="./linedashed.html">linedashed</a></li><li
+      
+      ><a href="./meshbasic.html">meshbasic</a></li><li
+      
+      ><a href="./meshlambert.html">meshlambert</a></li><li
+      
+      ><a href="./meshmatcap.html">meshmatcap</a></li><li
+      
+      ><a href="./meshnormal.html">meshnormal</a></li><li
+      
+      ><a href="./meshphong.html">meshphong</a></li><li
+      
+      ><a href="./meshphysical.html">meshphysical</a></li><li
+      
+      ><a href="./meshtoon.html">meshtoon</a></li><li
+      
+      ><a href="./points.html">points</a></li><li
+      class="selected"
+      ><a href="./shadow.html">shadow</a></li><li
+      
+      ><a href="./sprite.html">sprite</a></li><li
+      
+      ><a href="./vsm.html">vsm</a></li>
+    </ul>
+    <a
+    class="otherChunksLink"
+    href="./otherChunks.html">Other Chunks</a>
+  </nav></nav>
+        <article>
+            <h1>shadow.glsl.js</h1>
+            <section class="shader">
+                <h2 title="expand all">
+                    Vertex Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">
+</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;common&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;common&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#define PI 3.141592653589793
+#define PI2 6.283185307179586
+#define PI_HALF 1.5707963267948966
+#define RECIPROCAL_PI 0.3183098861837907
+#define RECIPROCAL_PI2 0.15915494309189535
+#define EPSILON 1e-6
+
+#ifndef saturate
+// &lt;tonemapping_pars_fragment&gt; may have defined saturate() already
+#define saturate( a ) clamp( a, 0.0, 1.0 )
+#endif
+#define whiteComplement( a ) ( 1.0 - saturate( a ) )
+
+float pow2( const in float x ) { return x*x; }
+vec3 pow2( const in vec3 x ) { return x*x; }
+float pow3( const in float x ) { return x*x*x; }
+float pow4( const in float x ) { float x2 = x*x; return x2*x2; }
+float max3( const in vec3 v ) { return max( max( v.x, v.y ), v.z ); }
+float average( const in vec3 v ) { return dot( v, vec3( 0.3333333 ) ); }
+
+// expects values in the range of [0,1]x[0,1], returns values in the [0,1] range.
+// do not collapse into a single function per: http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
+highp float rand( const in vec2 uv ) {
+
+	const highp float a = 12.9898, b = 78.233, c = 43758.5453;
+	highp float dt = dot( uv.xy, vec2( a,b ) ), sn = mod( dt, PI );
+
+	return fract( sin( sn ) * c );
+
+}
+
+#ifdef HIGH_PRECISION
+	float precisionSafeLength( vec3 v ) { return length( v ); }
+#else
+	float precisionSafeLength( vec3 v ) {
+		float maxComponent = max3( abs( v ) );
+		return length( v / maxComponent ) * maxComponent;
+	}
+#endif
+
+struct IncidentLight {
+	vec3 color;
+	vec3 direction;
+	bool visible;
+};
+
+struct ReflectedLight {
+	vec3 directDiffuse;
+	vec3 directSpecular;
+	vec3 indirectDiffuse;
+	vec3 indirectSpecular;
+};
+
+#ifdef USE_ALPHAHASH
+
+	varying vec3 vPosition;
+
+#endif
+
+vec3 transformDirection( in vec3 dir, in mat4 matrix ) {
+
+	return normalize( ( matrix * vec4( dir, 0.0 ) ).xyz );
+
+}
+
+vec3 inverseTransformDirection( in vec3 dir, in mat4 matrix ) {
+
+	// dir can be either a direction vector or a normal vector
+	// upper-left 3x3 of matrix is assumed to be orthogonal
+
+	return normalize( ( vec4( dir, 0.0 ) * matrix ).xyz );
+
+}
+
+mat3 transposeMat3( const in mat3 m ) {
+
+	mat3 tmp;
+
+	tmp[ 0 ] = vec3( m[ 0 ].x, m[ 1 ].x, m[ 2 ].x );
+	tmp[ 1 ] = vec3( m[ 0 ].y, m[ 1 ].y, m[ 2 ].y );
+	tmp[ 2 ] = vec3( m[ 0 ].z, m[ 1 ].z, m[ 2 ].z );
+
+	return tmp;
+
+}
+
+bool isPerspectiveMatrix( mat4 m ) {
+
+	return m[ 2 ][ 3 ] == - 1.0;
+
+}
+
+vec2 equirectUv( in vec3 dir ) {
+
+	// dir is assumed to be unit length
+
+	float u = atan( dir.z, dir.x ) * RECIPROCAL_PI2 + 0.5;
+
+	float v = asin( clamp( dir.y, - 1.0, 1.0 ) ) * RECIPROCAL_PI + 0.5;
+
+	return vec2( u, v );
+
+}
+
+vec3 BRDF_Lambert( const in vec3 diffuseColor ) {
+
+	return RECIPROCAL_PI * diffuseColor;
+
+} // validated
+
+vec3 F_Schlick( const in vec3 f0, const in float f90, const in float dotVH ) {
+
+	// Original approximation by Christophe Schlick &#039;94
+	// float fresnel = pow( 1.0 - dotVH, 5.0 );
+
+	// Optimized variant (presented by Epic at SIGGRAPH &#039;13)
+	// https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+	float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
+
+	return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
+
+} // validated
+
+float F_Schlick( const in float f0, const in float f90, const in float dotVH ) {
+
+	// Original approximation by Christophe Schlick &#039;94
+	// float fresnel = pow( 1.0 - dotVH, 5.0 );
+
+	// Optimized variant (presented by Epic at SIGGRAPH &#039;13)
+	// https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+	float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
+
+	return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
+
+} // validated</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;batching_pars_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;batching_pars_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_BATCHING
+	#if ! defined( GL_ANGLE_multi_draw )
+	#define gl_DrawID _gl_DrawID
+	uniform int _gl_DrawID;
+	#endif
+
+	uniform highp sampler2D batchingTexture;
+	uniform highp usampler2D batchingIdTexture;
+	mat4 getBatchingMatrix( const in float i ) {
+
+		int size = textureSize( batchingTexture, 0 ).x;
+		int j = int( i ) * 4;
+		int x = j % size;
+		int y = j / size;
+		vec4 v1 = texelFetch( batchingTexture, ivec2( x, y ), 0 );
+		vec4 v2 = texelFetch( batchingTexture, ivec2( x + 1, y ), 0 );
+		vec4 v3 = texelFetch( batchingTexture, ivec2( x + 2, y ), 0 );
+		vec4 v4 = texelFetch( batchingTexture, ivec2( x + 3, y ), 0 );
+		return mat4( v1, v2, v3, v4 );
+
+	}
+
+	float getIndirectIndex( const in int i ) {
+
+		int size = textureSize( batchingIdTexture, 0 ).x;
+		int x = i % size;
+		int y = i / size;
+		return float( texelFetch( batchingIdTexture, ivec2( x, y ), 0 ).r );
+
+	}
+
+#endif
+
+#ifdef USE_BATCHING_COLOR
+
+	uniform sampler2D batchingColorTexture;
+	vec3 getBatchingColor( const in float i ) {
+
+		int size = textureSize( batchingColorTexture, 0 ).x;
+		int j = int( i );
+		int x = j % size;
+		int y = j / size;
+		return texelFetch( batchingColorTexture, ivec2( x, y ), 0 ).rgb;
+
+	}
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;fog_pars_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;fog_pars_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_FOG
+
+	varying float vFogDepth;
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;morphtarget_pars_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;morphtarget_pars_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_MORPHTARGETS
+
+	#ifndef USE_INSTANCING_MORPH
+
+		uniform float morphTargetBaseInfluence;
+		uniform float morphTargetInfluences[ MORPHTARGETS_COUNT ];
+
+	#endif
+
+	uniform sampler2DArray morphTargetsTexture;
+	uniform ivec2 morphTargetsTextureSize;
+
+	vec4 getMorph( const in int vertexIndex, const in int morphTargetIndex, const in int offset ) {
+
+		int texelIndex = vertexIndex * MORPHTARGETS_TEXTURE_STRIDE + offset;
+		int y = texelIndex / morphTargetsTextureSize.x;
+		int x = texelIndex - y * morphTargetsTextureSize.x;
+
+		ivec3 morphUV = ivec3( x, y, morphTargetIndex );
+		return texelFetch( morphTargetsTexture, morphUV, 0 );
+
+	}
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;skinning_pars_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;skinning_pars_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_SKINNING
+
+	uniform mat4 bindMatrix;
+	uniform mat4 bindMatrixInverse;
+
+	uniform highp sampler2D boneTexture;
+
+	mat4 getBoneMatrix( const in float i ) {
+
+		int size = textureSize( boneTexture, 0 ).x;
+		int j = int( i ) * 4;
+		int x = j % size;
+		int y = j / size;
+		vec4 v1 = texelFetch( boneTexture, ivec2( x, y ), 0 );
+		vec4 v2 = texelFetch( boneTexture, ivec2( x + 1, y ), 0 );
+		vec4 v3 = texelFetch( boneTexture, ivec2( x + 2, y ), 0 );
+		vec4 v4 = texelFetch( boneTexture, ivec2( x + 3, y ), 0 );
+
+		return mat4( v1, v2, v3, v4 );
+
+	}
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;logdepthbuf_pars_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;logdepthbuf_pars_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_LOGDEPTHBUF
+
+	varying float vFragDepth;
+	varying float vIsPerspective;
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;shadowmap_pars_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;shadowmap_pars_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">
+#if NUM_SPOT_LIGHT_COORDS &gt; 0
+
+	uniform mat4 spotLightMatrix[ NUM_SPOT_LIGHT_COORDS ];
+	varying vec4 vSpotLightCoord[ NUM_SPOT_LIGHT_COORDS ];
+
+#endif
+
+#ifdef USE_SHADOWMAP
+
+	#if NUM_DIR_LIGHT_SHADOWS &gt; 0
+
+		uniform mat4 directionalShadowMatrix[ NUM_DIR_LIGHT_SHADOWS ];
+		varying vec4 vDirectionalShadowCoord[ NUM_DIR_LIGHT_SHADOWS ];
+
+		struct DirectionalLightShadow {
+			float shadowIntensity;
+			float shadowBias;
+			float shadowNormalBias;
+			float shadowRadius;
+			vec2 shadowMapSize;
+		};
+
+		uniform DirectionalLightShadow directionalLightShadows[ NUM_DIR_LIGHT_SHADOWS ];
+
+	#endif
+
+	#if NUM_SPOT_LIGHT_SHADOWS &gt; 0
+
+		struct SpotLightShadow {
+			float shadowIntensity;
+			float shadowBias;
+			float shadowNormalBias;
+			float shadowRadius;
+			vec2 shadowMapSize;
+		};
+
+		uniform SpotLightShadow spotLightShadows[ NUM_SPOT_LIGHT_SHADOWS ];
+
+	#endif
+
+	#if NUM_POINT_LIGHT_SHADOWS &gt; 0
+
+		uniform mat4 pointShadowMatrix[ NUM_POINT_LIGHT_SHADOWS ];
+		varying vec4 vPointShadowCoord[ NUM_POINT_LIGHT_SHADOWS ];
+
+		struct PointLightShadow {
+			float shadowIntensity;
+			float shadowBias;
+			float shadowNormalBias;
+			float shadowRadius;
+			vec2 shadowMapSize;
+			float shadowCameraNear;
+			float shadowCameraFar;
+		};
+
+		uniform PointLightShadow pointLightShadows[ NUM_POINT_LIGHT_SHADOWS ];
+
+	#endif
+
+	/*
+	#if NUM_RECT_AREA_LIGHTS &gt; 0
+
+		// TODO (abelnation): uniforms for area light shadows
+
+	#endif
+	*/
+
+#endif</code></pre>
+    </div><pre><code class="language-glsl">
+
+void main() {
+
+	</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;batching_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;batching_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_BATCHING
+	mat4 batchingMatrix = getBatchingMatrix( getIndirectIndex( gl_DrawID ) );
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;beginnormal_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;beginnormal_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">vec3 objectNormal = vec3( normal );
+
+#ifdef USE_TANGENT
+
+	vec3 objectTangent = vec3( tangent.xyz );
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;morphinstance_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;morphinstance_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_INSTANCING_MORPH
+
+	float morphTargetInfluences[ MORPHTARGETS_COUNT ];
+
+	float morphTargetBaseInfluence = texelFetch( morphTexture, ivec2( 0, gl_InstanceID ), 0 ).r;
+
+	for ( int i = 0; i &lt; MORPHTARGETS_COUNT; i ++ ) {
+
+		morphTargetInfluences[i] =  texelFetch( morphTexture, ivec2( i + 1, gl_InstanceID ), 0 ).r;
+
+	}
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;morphnormal_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;morphnormal_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_MORPHNORMALS
+
+	// morphTargetBaseInfluence is set based on BufferGeometry.morphTargetsRelative value:
+	// When morphTargetsRelative is false, this is set to 1 - sum(influences); this results in normal = sum((target - base) * influence)
+	// When morphTargetsRelative is true, this is set to 1; as a result, all morph targets are simply added to the base after weighting
+	objectNormal *= morphTargetBaseInfluence;
+
+	for ( int i = 0; i &lt; MORPHTARGETS_COUNT; i ++ ) {
+
+		if ( morphTargetInfluences[ i ] != 0.0 ) objectNormal += getMorph( gl_VertexID, i, 1 ).xyz * morphTargetInfluences[ i ];
+
+	}
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;skinbase_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;skinbase_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_SKINNING
+
+	mat4 boneMatX = getBoneMatrix( skinIndex.x );
+	mat4 boneMatY = getBoneMatrix( skinIndex.y );
+	mat4 boneMatZ = getBoneMatrix( skinIndex.z );
+	mat4 boneMatW = getBoneMatrix( skinIndex.w );
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;skinnormal_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;skinnormal_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_SKINNING
+
+	mat4 skinMatrix = mat4( 0.0 );
+	skinMatrix += skinWeight.x * boneMatX;
+	skinMatrix += skinWeight.y * boneMatY;
+	skinMatrix += skinWeight.z * boneMatZ;
+	skinMatrix += skinWeight.w * boneMatW;
+	skinMatrix = bindMatrixInverse * skinMatrix * bindMatrix;
+
+	objectNormal = vec4( skinMatrix * vec4( objectNormal, 0.0 ) ).xyz;
+
+	#ifdef USE_TANGENT
+
+		objectTangent = vec4( skinMatrix * vec4( objectTangent, 0.0 ) ).xyz;
+
+	#endif
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;defaultnormal_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;defaultnormal_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">
+vec3 transformedNormal = objectNormal;
+#ifdef USE_TANGENT
+
+	vec3 transformedTangent = objectTangent;
+
+#endif
+
+#ifdef USE_BATCHING
+
+	// this is in lieu of a per-instance normal-matrix
+	// shear transforms in the instance matrix are not supported
+
+	mat3 bm = mat3( batchingMatrix );
+	transformedNormal /= vec3( dot( bm[ 0 ], bm[ 0 ] ), dot( bm[ 1 ], bm[ 1 ] ), dot( bm[ 2 ], bm[ 2 ] ) );
+	transformedNormal = bm * transformedNormal;
+
+	#ifdef USE_TANGENT
+
+		transformedTangent = bm * transformedTangent;
+
+	#endif
+
+#endif
+
+#ifdef USE_INSTANCING
+
+	// this is in lieu of a per-instance normal-matrix
+	// shear transforms in the instance matrix are not supported
+
+	mat3 im = mat3( instanceMatrix );
+	transformedNormal /= vec3( dot( im[ 0 ], im[ 0 ] ), dot( im[ 1 ], im[ 1 ] ), dot( im[ 2 ], im[ 2 ] ) );
+	transformedNormal = im * transformedNormal;
+
+	#ifdef USE_TANGENT
+
+		transformedTangent = im * transformedTangent;
+
+	#endif
+
+#endif
+
+transformedNormal = normalMatrix * transformedNormal;
+
+#ifdef FLIP_SIDED
+
+	transformedNormal = - transformedNormal;
+
+#endif
+
+#ifdef USE_TANGENT
+
+	transformedTangent = ( modelViewMatrix * vec4( transformedTangent, 0.0 ) ).xyz;
+
+	#ifdef FLIP_SIDED
+
+		transformedTangent = - transformedTangent;
+
+	#endif
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;begin_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;begin_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">vec3 transformed = vec3( position );
+
+#ifdef USE_ALPHAHASH
+
+	vPosition = vec3( position );
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;morphtarget_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;morphtarget_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_MORPHTARGETS
+
+	// morphTargetBaseInfluence is set based on BufferGeometry.morphTargetsRelative value:
+	// When morphTargetsRelative is false, this is set to 1 - sum(influences); this results in position = sum((target - base) * influence)
+	// When morphTargetsRelative is true, this is set to 1; as a result, all morph targets are simply added to the base after weighting
+	transformed *= morphTargetBaseInfluence;
+
+	for ( int i = 0; i &lt; MORPHTARGETS_COUNT; i ++ ) {
+
+		if ( morphTargetInfluences[ i ] != 0.0 ) transformed += getMorph( gl_VertexID, i, 0 ).xyz * morphTargetInfluences[ i ];
+
+	}
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;skinning_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;skinning_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_SKINNING
+
+	vec4 skinVertex = bindMatrix * vec4( transformed, 1.0 );
+
+	vec4 skinned = vec4( 0.0 );
+	skinned += boneMatX * skinVertex * skinWeight.x;
+	skinned += boneMatY * skinVertex * skinWeight.y;
+	skinned += boneMatZ * skinVertex * skinWeight.z;
+	skinned += boneMatW * skinVertex * skinWeight.w;
+
+	transformed = ( bindMatrixInverse * skinned ).xyz;
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;project_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;project_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">vec4 mvPosition = vec4( transformed, 1.0 );
+
+#ifdef USE_BATCHING
+
+	mvPosition = batchingMatrix * mvPosition;
+
+#endif
+
+#ifdef USE_INSTANCING
+
+	mvPosition = instanceMatrix * mvPosition;
+
+#endif
+
+mvPosition = modelViewMatrix * mvPosition;
+
+gl_Position = projectionMatrix * mvPosition;</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;logdepthbuf_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;logdepthbuf_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_LOGDEPTHBUF
+
+	vFragDepth = 1.0 + gl_Position.w;
+	vIsPerspective = float( isPerspectiveMatrix( projectionMatrix ) );
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;worldpos_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;worldpos_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#if defined( USE_ENVMAP ) || defined( DISTANCE ) || defined ( USE_SHADOWMAP ) || defined ( USE_TRANSMISSION ) || NUM_SPOT_LIGHT_COORDS &gt; 0
+
+	vec4 worldPosition = vec4( transformed, 1.0 );
+
+	#ifdef USE_BATCHING
+
+		worldPosition = batchingMatrix * worldPosition;
+
+	#endif
+
+	#ifdef USE_INSTANCING
+
+		worldPosition = instanceMatrix * worldPosition;
+
+	#endif
+
+	worldPosition = modelMatrix * worldPosition;
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;shadowmap_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;shadowmap_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">
+#if ( defined( USE_SHADOWMAP ) &amp;&amp; ( NUM_DIR_LIGHT_SHADOWS &gt; 0 || NUM_POINT_LIGHT_SHADOWS &gt; 0 ) ) || ( NUM_SPOT_LIGHT_COORDS &gt; 0 )
+
+	// Offsetting the position used for querying occlusion along the world normal can be used to reduce shadow acne.
+	vec3 shadowWorldNormal = inverseTransformDirection( transformedNormal, viewMatrix );
+	vec4 shadowWorldPosition;
+
+#endif
+
+#if defined( USE_SHADOWMAP )
+
+	#if NUM_DIR_LIGHT_SHADOWS &gt; 0
+
+		#pragma unroll_loop_start
+		for ( int i = 0; i &lt; NUM_DIR_LIGHT_SHADOWS; i ++ ) {
+
+			shadowWorldPosition = worldPosition + vec4( shadowWorldNormal * directionalLightShadows[ i ].shadowNormalBias, 0 );
+			vDirectionalShadowCoord[ i ] = directionalShadowMatrix[ i ] * shadowWorldPosition;
+
+		}
+		#pragma unroll_loop_end
+
+	#endif
+
+	#if NUM_POINT_LIGHT_SHADOWS &gt; 0
+
+		#pragma unroll_loop_start
+		for ( int i = 0; i &lt; NUM_POINT_LIGHT_SHADOWS; i ++ ) {
+
+			shadowWorldPosition = worldPosition + vec4( shadowWorldNormal * pointLightShadows[ i ].shadowNormalBias, 0 );
+			vPointShadowCoord[ i ] = pointShadowMatrix[ i ] * shadowWorldPosition;
+
+		}
+		#pragma unroll_loop_end
+
+	#endif
+
+	/*
+	#if NUM_RECT_AREA_LIGHTS &gt; 0
+
+		// TODO (abelnation): update vAreaShadowCoord with area light info
+
+	#endif
+	*/
+
+#endif
+
+// spot lights can be evaluated without active shadow mapping (when SpotLight.map is used)
+
+#if NUM_SPOT_LIGHT_COORDS &gt; 0
+
+	#pragma unroll_loop_start
+	for ( int i = 0; i &lt; NUM_SPOT_LIGHT_COORDS; i ++ ) {
+
+		shadowWorldPosition = worldPosition;
+		#if ( defined( USE_SHADOWMAP ) &amp;&amp; UNROLLED_LOOP_INDEX &lt; NUM_SPOT_LIGHT_SHADOWS )
+			shadowWorldPosition.xyz += shadowWorldNormal * spotLightShadows[ i ].shadowNormalBias;
+		#endif
+		vSpotLightCoord[ i ] = spotLightMatrix[ i ] * shadowWorldPosition;
+
+	}
+	#pragma unroll_loop_end
+
+#endif
+
+</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;fog_vertex&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;fog_vertex&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_FOG
+
+	vFogDepth = - mvPosition.z;
+
+#endif</code></pre>
+    </div><pre><code class="language-glsl">
+
+}
+</code></pre>
+                </div>
+            </section>
+            <section class="shader">
+                <h2 title="expand all">
+                    Fragment Shader
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        height="15px"
+                        width="15px"
+                        fill="#5f6368"
+                    >
+                        <use class="expand" href="#code" />
+                        <use class="collapse hide" href="#code_off" />
+                    </svg>
+                </h2>
+                <div class="code">
+                    <pre><code class="language-glsl">
+uniform vec3 color;
+uniform float opacity;
+
+</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;common&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;common&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#define PI 3.141592653589793
+#define PI2 6.283185307179586
+#define PI_HALF 1.5707963267948966
+#define RECIPROCAL_PI 0.3183098861837907
+#define RECIPROCAL_PI2 0.15915494309189535
+#define EPSILON 1e-6
+
+#ifndef saturate
+// &lt;tonemapping_pars_fragment&gt; may have defined saturate() already
+#define saturate( a ) clamp( a, 0.0, 1.0 )
+#endif
+#define whiteComplement( a ) ( 1.0 - saturate( a ) )
+
+float pow2( const in float x ) { return x*x; }
+vec3 pow2( const in vec3 x ) { return x*x; }
+float pow3( const in float x ) { return x*x*x; }
+float pow4( const in float x ) { float x2 = x*x; return x2*x2; }
+float max3( const in vec3 v ) { return max( max( v.x, v.y ), v.z ); }
+float average( const in vec3 v ) { return dot( v, vec3( 0.3333333 ) ); }
+
+// expects values in the range of [0,1]x[0,1], returns values in the [0,1] range.
+// do not collapse into a single function per: http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
+highp float rand( const in vec2 uv ) {
+
+	const highp float a = 12.9898, b = 78.233, c = 43758.5453;
+	highp float dt = dot( uv.xy, vec2( a,b ) ), sn = mod( dt, PI );
+
+	return fract( sin( sn ) * c );
+
+}
+
+#ifdef HIGH_PRECISION
+	float precisionSafeLength( vec3 v ) { return length( v ); }
+#else
+	float precisionSafeLength( vec3 v ) {
+		float maxComponent = max3( abs( v ) );
+		return length( v / maxComponent ) * maxComponent;
+	}
+#endif
+
+struct IncidentLight {
+	vec3 color;
+	vec3 direction;
+	bool visible;
+};
+
+struct ReflectedLight {
+	vec3 directDiffuse;
+	vec3 directSpecular;
+	vec3 indirectDiffuse;
+	vec3 indirectSpecular;
+};
+
+#ifdef USE_ALPHAHASH
+
+	varying vec3 vPosition;
+
+#endif
+
+vec3 transformDirection( in vec3 dir, in mat4 matrix ) {
+
+	return normalize( ( matrix * vec4( dir, 0.0 ) ).xyz );
+
+}
+
+vec3 inverseTransformDirection( in vec3 dir, in mat4 matrix ) {
+
+	// dir can be either a direction vector or a normal vector
+	// upper-left 3x3 of matrix is assumed to be orthogonal
+
+	return normalize( ( vec4( dir, 0.0 ) * matrix ).xyz );
+
+}
+
+mat3 transposeMat3( const in mat3 m ) {
+
+	mat3 tmp;
+
+	tmp[ 0 ] = vec3( m[ 0 ].x, m[ 1 ].x, m[ 2 ].x );
+	tmp[ 1 ] = vec3( m[ 0 ].y, m[ 1 ].y, m[ 2 ].y );
+	tmp[ 2 ] = vec3( m[ 0 ].z, m[ 1 ].z, m[ 2 ].z );
+
+	return tmp;
+
+}
+
+bool isPerspectiveMatrix( mat4 m ) {
+
+	return m[ 2 ][ 3 ] == - 1.0;
+
+}
+
+vec2 equirectUv( in vec3 dir ) {
+
+	// dir is assumed to be unit length
+
+	float u = atan( dir.z, dir.x ) * RECIPROCAL_PI2 + 0.5;
+
+	float v = asin( clamp( dir.y, - 1.0, 1.0 ) ) * RECIPROCAL_PI + 0.5;
+
+	return vec2( u, v );
+
+}
+
+vec3 BRDF_Lambert( const in vec3 diffuseColor ) {
+
+	return RECIPROCAL_PI * diffuseColor;
+
+} // validated
+
+vec3 F_Schlick( const in vec3 f0, const in float f90, const in float dotVH ) {
+
+	// Original approximation by Christophe Schlick &#039;94
+	// float fresnel = pow( 1.0 - dotVH, 5.0 );
+
+	// Optimized variant (presented by Epic at SIGGRAPH &#039;13)
+	// https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+	float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
+
+	return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
+
+} // validated
+
+float F_Schlick( const in float f0, const in float f90, const in float dotVH ) {
+
+	// Original approximation by Christophe Schlick &#039;94
+	// float fresnel = pow( 1.0 - dotVH, 5.0 );
+
+	// Optimized variant (presented by Epic at SIGGRAPH &#039;13)
+	// https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+	float fresnel = exp2( ( - 5.55473 * dotVH - 6.98316 ) * dotVH );
+
+	return f0 * ( 1.0 - fresnel ) + ( f90 * fresnel );
+
+} // validated</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;packing&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;packing&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">vec3 packNormalToRGB( const in vec3 normal ) {
+	return normalize( normal ) * 0.5 + 0.5;
+}
+
+vec3 unpackRGBToNormal( const in vec3 rgb ) {
+	return 2.0 * rgb.xyz - 1.0;
+}
+
+const float PackUpscale = 256. / 255.; // fraction -&gt; 0..1 (including 1)
+const float UnpackDownscale = 255. / 256.; // 0..1 -&gt; fraction (excluding 1)
+const float ShiftRight8 = 1. / 256.;
+const float Inv255 = 1. / 255.;
+
+const vec4 PackFactors = vec4( 1.0, 256.0, 256.0 * 256.0, 256.0 * 256.0 * 256.0 );
+
+const vec2 UnpackFactors2 = vec2( UnpackDownscale, 1.0 / PackFactors.g );
+const vec3 UnpackFactors3 = vec3( UnpackDownscale / PackFactors.rg, 1.0 / PackFactors.b );
+const vec4 UnpackFactors4 = vec4( UnpackDownscale / PackFactors.rgb, 1.0 / PackFactors.a );
+
+vec4 packDepthToRGBA( const in float v ) {
+	if( v &lt;= 0.0 )
+		return vec4( 0., 0., 0., 0. );
+	if( v &gt;= 1.0 )
+		return vec4( 1., 1., 1., 1. );
+	float vuf;
+	float af = modf( v * PackFactors.a, vuf );
+	float bf = modf( vuf * ShiftRight8, vuf );
+	float gf = modf( vuf * ShiftRight8, vuf );
+	return vec4( vuf * Inv255, gf * PackUpscale, bf * PackUpscale, af );
+}
+
+vec3 packDepthToRGB( const in float v ) {
+	if( v &lt;= 0.0 )
+		return vec3( 0., 0., 0. );
+	if( v &gt;= 1.0 )
+		return vec3( 1., 1., 1. );
+	float vuf;
+	float bf = modf( v * PackFactors.b, vuf );
+	float gf = modf( vuf * ShiftRight8, vuf );
+	// the 0.9999 tweak is unimportant, very tiny empirical improvement
+	// return vec3( vuf * Inv255, gf * PackUpscale, bf * 0.9999 );
+	return vec3( vuf * Inv255, gf * PackUpscale, bf );
+}
+
+vec2 packDepthToRG( const in float v ) {
+	if( v &lt;= 0.0 )
+		return vec2( 0., 0. );
+	if( v &gt;= 1.0 )
+		return vec2( 1., 1. );
+	float vuf;
+	float gf = modf( v * 256., vuf );
+	return vec2( vuf * Inv255, gf );
+}
+
+float unpackRGBAToDepth( const in vec4 v ) {
+	return dot( v, UnpackFactors4 );
+}
+
+float unpackRGBToDepth( const in vec3 v ) {
+	return dot( v, UnpackFactors3 );
+}
+
+float unpackRGToDepth( const in vec2 v ) {
+	return v.r * UnpackFactors2.r + v.g * UnpackFactors2.g;
+}
+
+vec4 pack2HalfToRGBA( const in vec2 v ) {
+	vec4 r = vec4( v.x, fract( v.x * 255.0 ), v.y, fract( v.y * 255.0 ) );
+	return vec4( r.x - r.y / 255.0, r.y, r.z - r.w / 255.0, r.w );
+}
+
+vec2 unpackRGBATo2Half( const in vec4 v ) {
+	return vec2( v.x + ( v.y / 255.0 ), v.z + ( v.w / 255.0 ) );
+}
+
+// NOTE: viewZ, the z-coordinate in camera space, is negative for points in front of the camera
+
+float viewZToOrthographicDepth( const in float viewZ, const in float near, const in float far ) {
+	// -near maps to 0; -far maps to 1
+	return ( viewZ + near ) / ( near - far );
+}
+
+float orthographicDepthToViewZ( const in float depth, const in float near, const in float far ) {
+	// maps orthographic depth in [ 0, 1 ] to viewZ
+	return depth * ( near - far ) - near;
+}
+
+// NOTE: https://twitter.com/gonnavis/status/1377183786949959682
+
+float viewZToPerspectiveDepth( const in float viewZ, const in float near, const in float far ) {
+	// -near maps to 0; -far maps to 1
+	return ( ( near + viewZ ) * far ) / ( ( far - near ) * viewZ );
+}
+
+float perspectiveDepthToViewZ( const in float depth, const in float near, const in float far ) {
+	// maps perspective depth in [ 0, 1 ] to viewZ
+	return ( near * far ) / ( ( far - near ) * depth - far );
+}</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;fog_pars_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;fog_pars_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_FOG
+
+	uniform vec3 fogColor;
+	varying float vFogDepth;
+
+	#ifdef FOG_EXP2
+
+		uniform float fogDensity;
+
+	#else
+
+		uniform float fogNear;
+		uniform float fogFar;
+
+	#endif
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;bsdfs&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;bsdfs&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">
+float G_BlinnPhong_Implicit( /* const in float dotNL, const in float dotNV */ ) {
+
+	// geometry term is (n dot l)(n dot v) / 4(n dot l)(n dot v)
+	return 0.25;
+
+}
+
+float D_BlinnPhong( const in float shininess, const in float dotNH ) {
+
+	return RECIPROCAL_PI * ( shininess * 0.5 + 1.0 ) * pow( dotNH, shininess );
+
+}
+
+vec3 BRDF_BlinnPhong( const in vec3 lightDir, const in vec3 viewDir, const in vec3 normal, const in vec3 specularColor, const in float shininess ) {
+
+	vec3 halfDir = normalize( lightDir + viewDir );
+
+	float dotNH = saturate( dot( normal, halfDir ) );
+	float dotVH = saturate( dot( viewDir, halfDir ) );
+
+	vec3 F = F_Schlick( specularColor, 1.0, dotVH );
+
+	float G = G_BlinnPhong_Implicit( /* dotNL, dotNV */ );
+
+	float D = D_BlinnPhong( shininess, dotNH );
+
+	return F * ( G * D );
+
+} // validated
+</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;lights_pars_begin&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;lights_pars_begin&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">uniform bool receiveShadow;
+uniform vec3 ambientLightColor;
+
+#if defined( USE_LIGHT_PROBES )
+
+	uniform vec3 lightProbe[ 9 ];
+
+#endif
+
+// get the irradiance (radiance convolved with cosine lobe) at the point &#039;normal&#039; on the unit sphere
+// source: https://graphics.stanford.edu/papers/envmap/envmap.pdf
+vec3 shGetIrradianceAt( in vec3 normal, in vec3 shCoefficients[ 9 ] ) {
+
+	// normal is assumed to have unit length
+
+	float x = normal.x, y = normal.y, z = normal.z;
+
+	// band 0
+	vec3 result = shCoefficients[ 0 ] * 0.886227;
+
+	// band 1
+	result += shCoefficients[ 1 ] * 2.0 * 0.511664 * y;
+	result += shCoefficients[ 2 ] * 2.0 * 0.511664 * z;
+	result += shCoefficients[ 3 ] * 2.0 * 0.511664 * x;
+
+	// band 2
+	result += shCoefficients[ 4 ] * 2.0 * 0.429043 * x * y;
+	result += shCoefficients[ 5 ] * 2.0 * 0.429043 * y * z;
+	result += shCoefficients[ 6 ] * ( 0.743125 * z * z - 0.247708 );
+	result += shCoefficients[ 7 ] * 2.0 * 0.429043 * x * z;
+	result += shCoefficients[ 8 ] * 0.429043 * ( x * x - y * y );
+
+	return result;
+
+}
+
+vec3 getLightProbeIrradiance( const in vec3 lightProbe[ 9 ], const in vec3 normal ) {
+
+	vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );
+
+	vec3 irradiance = shGetIrradianceAt( worldNormal, lightProbe );
+
+	return irradiance;
+
+}
+
+vec3 getAmbientLightIrradiance( const in vec3 ambientLightColor ) {
+
+	vec3 irradiance = ambientLightColor;
+
+	return irradiance;
+
+}
+
+float getDistanceAttenuation( const in float lightDistance, const in float cutoffDistance, const in float decayExponent ) {
+
+	// based upon Frostbite 3 Moving to Physically-based Rendering
+	// page 32, equation 26: E[window1]
+	// https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+	float distanceFalloff = 1.0 / max( pow( lightDistance, decayExponent ), 0.01 );
+
+	if ( cutoffDistance &gt; 0.0 ) {
+
+		distanceFalloff *= pow2( saturate( 1.0 - pow4( lightDistance / cutoffDistance ) ) );
+
+	}
+
+	return distanceFalloff;
+
+}
+
+float getSpotAttenuation( const in float coneCosine, const in float penumbraCosine, const in float angleCosine ) {
+
+	return smoothstep( coneCosine, penumbraCosine, angleCosine );
+
+}
+
+#if NUM_DIR_LIGHTS &gt; 0
+
+	struct DirectionalLight {
+		vec3 direction;
+		vec3 color;
+	};
+
+	uniform DirectionalLight directionalLights[ NUM_DIR_LIGHTS ];
+
+	void getDirectionalLightInfo( const in DirectionalLight directionalLight, out IncidentLight light ) {
+
+		light.color = directionalLight.color;
+		light.direction = directionalLight.direction;
+		light.visible = true;
+
+	}
+
+#endif
+
+
+#if NUM_POINT_LIGHTS &gt; 0
+
+	struct PointLight {
+		vec3 position;
+		vec3 color;
+		float distance;
+		float decay;
+	};
+
+	uniform PointLight pointLights[ NUM_POINT_LIGHTS ];
+
+	// light is an out parameter as having it as a return value caused compiler errors on some devices
+	void getPointLightInfo( const in PointLight pointLight, const in vec3 geometryPosition, out IncidentLight light ) {
+
+		vec3 lVector = pointLight.position - geometryPosition;
+
+		light.direction = normalize( lVector );
+
+		float lightDistance = length( lVector );
+
+		light.color = pointLight.color;
+		light.color *= getDistanceAttenuation( lightDistance, pointLight.distance, pointLight.decay );
+		light.visible = ( light.color != vec3( 0.0 ) );
+
+	}
+
+#endif
+
+
+#if NUM_SPOT_LIGHTS &gt; 0
+
+	struct SpotLight {
+		vec3 position;
+		vec3 direction;
+		vec3 color;
+		float distance;
+		float decay;
+		float coneCos;
+		float penumbraCos;
+	};
+
+	uniform SpotLight spotLights[ NUM_SPOT_LIGHTS ];
+
+	// light is an out parameter as having it as a return value caused compiler errors on some devices
+	void getSpotLightInfo( const in SpotLight spotLight, const in vec3 geometryPosition, out IncidentLight light ) {
+
+		vec3 lVector = spotLight.position - geometryPosition;
+
+		light.direction = normalize( lVector );
+
+		float angleCos = dot( light.direction, spotLight.direction );
+
+		float spotAttenuation = getSpotAttenuation( spotLight.coneCos, spotLight.penumbraCos, angleCos );
+
+		if ( spotAttenuation &gt; 0.0 ) {
+
+			float lightDistance = length( lVector );
+
+			light.color = spotLight.color * spotAttenuation;
+			light.color *= getDistanceAttenuation( lightDistance, spotLight.distance, spotLight.decay );
+			light.visible = ( light.color != vec3( 0.0 ) );
+
+		} else {
+
+			light.color = vec3( 0.0 );
+			light.visible = false;
+
+		}
+
+	}
+
+#endif
+
+
+#if NUM_RECT_AREA_LIGHTS &gt; 0
+
+	struct RectAreaLight {
+		vec3 color;
+		vec3 position;
+		vec3 halfWidth;
+		vec3 halfHeight;
+	};
+
+	// Pre-computed values of LinearTransformedCosine approximation of BRDF
+	// BRDF approximation Texture is 64x64
+	uniform sampler2D ltc_1; // RGBA Float
+	uniform sampler2D ltc_2; // RGBA Float
+
+	uniform RectAreaLight rectAreaLights[ NUM_RECT_AREA_LIGHTS ];
+
+#endif
+
+
+#if NUM_HEMI_LIGHTS &gt; 0
+
+	struct HemisphereLight {
+		vec3 direction;
+		vec3 skyColor;
+		vec3 groundColor;
+	};
+
+	uniform HemisphereLight hemisphereLights[ NUM_HEMI_LIGHTS ];
+
+	vec3 getHemisphereLightIrradiance( const in HemisphereLight hemiLight, const in vec3 normal ) {
+
+		float dotNL = dot( normal, hemiLight.direction );
+		float hemiDiffuseWeight = 0.5 * dotNL + 0.5;
+
+		vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight );
+
+		return irradiance;
+
+	}
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;logdepthbuf_pars_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;logdepthbuf_pars_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#if defined( USE_LOGDEPTHBUF )
+
+	uniform float logDepthBufFC;
+	varying float vFragDepth;
+	varying float vIsPerspective;
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;shadowmap_pars_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;shadowmap_pars_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#if NUM_SPOT_LIGHT_COORDS &gt; 0
+
+	varying vec4 vSpotLightCoord[ NUM_SPOT_LIGHT_COORDS ];
+
+#endif
+
+#if NUM_SPOT_LIGHT_MAPS &gt; 0
+
+	uniform sampler2D spotLightMap[ NUM_SPOT_LIGHT_MAPS ];
+
+#endif
+
+#ifdef USE_SHADOWMAP
+
+	#if NUM_DIR_LIGHT_SHADOWS &gt; 0
+
+		uniform sampler2D directionalShadowMap[ NUM_DIR_LIGHT_SHADOWS ];
+		varying vec4 vDirectionalShadowCoord[ NUM_DIR_LIGHT_SHADOWS ];
+
+		struct DirectionalLightShadow {
+			float shadowIntensity;
+			float shadowBias;
+			float shadowNormalBias;
+			float shadowRadius;
+			vec2 shadowMapSize;
+		};
+
+		uniform DirectionalLightShadow directionalLightShadows[ NUM_DIR_LIGHT_SHADOWS ];
+
+	#endif
+
+	#if NUM_SPOT_LIGHT_SHADOWS &gt; 0
+
+		uniform sampler2D spotShadowMap[ NUM_SPOT_LIGHT_SHADOWS ];
+
+		struct SpotLightShadow {
+			float shadowIntensity;
+			float shadowBias;
+			float shadowNormalBias;
+			float shadowRadius;
+			vec2 shadowMapSize;
+		};
+
+		uniform SpotLightShadow spotLightShadows[ NUM_SPOT_LIGHT_SHADOWS ];
+
+	#endif
+
+	#if NUM_POINT_LIGHT_SHADOWS &gt; 0
+
+		uniform sampler2D pointShadowMap[ NUM_POINT_LIGHT_SHADOWS ];
+		varying vec4 vPointShadowCoord[ NUM_POINT_LIGHT_SHADOWS ];
+
+		struct PointLightShadow {
+			float shadowIntensity;
+			float shadowBias;
+			float shadowNormalBias;
+			float shadowRadius;
+			vec2 shadowMapSize;
+			float shadowCameraNear;
+			float shadowCameraFar;
+		};
+
+		uniform PointLightShadow pointLightShadows[ NUM_POINT_LIGHT_SHADOWS ];
+
+	#endif
+
+	/*
+	#if NUM_RECT_AREA_LIGHTS &gt; 0
+
+		// TODO (abelnation): create uniforms for area light shadows
+
+	#endif
+	*/
+
+	float texture2DCompare( sampler2D depths, vec2 uv, float compare ) {
+
+		return step( compare, unpackRGBAToDepth( texture2D( depths, uv ) ) );
+
+	}
+
+	vec2 texture2DDistribution( sampler2D shadow, vec2 uv ) {
+
+		return unpackRGBATo2Half( texture2D( shadow, uv ) );
+
+	}
+
+	float VSMShadow (sampler2D shadow, vec2 uv, float compare ){
+
+		float occlusion = 1.0;
+
+		vec2 distribution = texture2DDistribution( shadow, uv );
+
+		float hard_shadow = step( compare , distribution.x ); // Hard Shadow
+
+		if (hard_shadow != 1.0 ) {
+
+			float distance = compare - distribution.x ;
+			float variance = max( 0.00000, distribution.y * distribution.y );
+			float softness_probability = variance / (variance + distance * distance ); // Chebeyshevs inequality
+			softness_probability = clamp( ( softness_probability - 0.3 ) / ( 0.95 - 0.3 ), 0.0, 1.0 ); // 0.3 reduces light bleed
+			occlusion = clamp( max( hard_shadow, softness_probability ), 0.0, 1.0 );
+
+		}
+		return occlusion;
+
+	}
+
+	float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+
+		float shadow = 1.0;
+
+		shadowCoord.xyz /= shadowCoord.w;
+		shadowCoord.z += shadowBias;
+
+		bool inFrustum = shadowCoord.x &gt;= 0.0 &amp;&amp; shadowCoord.x &lt;= 1.0 &amp;&amp; shadowCoord.y &gt;= 0.0 &amp;&amp; shadowCoord.y &lt;= 1.0;
+		bool frustumTest = inFrustum &amp;&amp; shadowCoord.z &lt;= 1.0;
+
+		if ( frustumTest ) {
+
+		#if defined( SHADOWMAP_TYPE_PCF )
+
+			vec2 texelSize = vec2( 1.0 ) / shadowMapSize;
+
+			float dx0 = - texelSize.x * shadowRadius;
+			float dy0 = - texelSize.y * shadowRadius;
+			float dx1 = + texelSize.x * shadowRadius;
+			float dy1 = + texelSize.y * shadowRadius;
+			float dx2 = dx0 / 2.0;
+			float dy2 = dy0 / 2.0;
+			float dx3 = dx1 / 2.0;
+			float dy3 = dy1 / 2.0;
+
+			shadow = (
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx0, dy0 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( 0.0, dy0 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx1, dy0 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx2, dy2 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( 0.0, dy2 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx3, dy2 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx0, 0.0 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx2, 0.0 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy, shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx3, 0.0 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx1, 0.0 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx2, dy3 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( 0.0, dy3 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx3, dy3 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx0, dy1 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( 0.0, dy1 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, shadowCoord.xy + vec2( dx1, dy1 ), shadowCoord.z )
+			) * ( 1.0 / 17.0 );
+
+		#elif defined( SHADOWMAP_TYPE_PCF_SOFT )
+
+			vec2 texelSize = vec2( 1.0 ) / shadowMapSize;
+			float dx = texelSize.x;
+			float dy = texelSize.y;
+
+			vec2 uv = shadowCoord.xy;
+			vec2 f = fract( uv * shadowMapSize + 0.5 );
+			uv -= f * texelSize;
+
+			shadow = (
+				texture2DCompare( shadowMap, uv, shadowCoord.z ) +
+				texture2DCompare( shadowMap, uv + vec2( dx, 0.0 ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, uv + vec2( 0.0, dy ), shadowCoord.z ) +
+				texture2DCompare( shadowMap, uv + texelSize, shadowCoord.z ) +
+				mix( texture2DCompare( shadowMap, uv + vec2( -dx, 0.0 ), shadowCoord.z ),
+					 texture2DCompare( shadowMap, uv + vec2( 2.0 * dx, 0.0 ), shadowCoord.z ),
+					 f.x ) +
+				mix( texture2DCompare( shadowMap, uv + vec2( -dx, dy ), shadowCoord.z ),
+					 texture2DCompare( shadowMap, uv + vec2( 2.0 * dx, dy ), shadowCoord.z ),
+					 f.x ) +
+				mix( texture2DCompare( shadowMap, uv + vec2( 0.0, -dy ), shadowCoord.z ),
+					 texture2DCompare( shadowMap, uv + vec2( 0.0, 2.0 * dy ), shadowCoord.z ),
+					 f.y ) +
+				mix( texture2DCompare( shadowMap, uv + vec2( dx, -dy ), shadowCoord.z ),
+					 texture2DCompare( shadowMap, uv + vec2( dx, 2.0 * dy ), shadowCoord.z ),
+					 f.y ) +
+				mix( mix( texture2DCompare( shadowMap, uv + vec2( -dx, -dy ), shadowCoord.z ),
+						  texture2DCompare( shadowMap, uv + vec2( 2.0 * dx, -dy ), shadowCoord.z ),
+						  f.x ),
+					 mix( texture2DCompare( shadowMap, uv + vec2( -dx, 2.0 * dy ), shadowCoord.z ),
+						  texture2DCompare( shadowMap, uv + vec2( 2.0 * dx, 2.0 * dy ), shadowCoord.z ),
+						  f.x ),
+					 f.y )
+			) * ( 1.0 / 9.0 );
+
+		#elif defined( SHADOWMAP_TYPE_VSM )
+
+			shadow = VSMShadow( shadowMap, shadowCoord.xy, shadowCoord.z );
+
+		#else // no percentage-closer filtering:
+
+			shadow = texture2DCompare( shadowMap, shadowCoord.xy, shadowCoord.z );
+
+		#endif
+
+		}
+
+		return mix( 1.0, shadow, shadowIntensity );
+
+	}
+
+	// cubeToUV() maps a 3D direction vector suitable for cube texture mapping to a 2D
+	// vector suitable for 2D texture mapping. This code uses the following layout for the
+	// 2D texture:
+	//
+	// xzXZ
+	//  y Y
+	//
+	// Y - Positive y direction
+	// y - Negative y direction
+	// X - Positive x direction
+	// x - Negative x direction
+	// Z - Positive z direction
+	// z - Negative z direction
+	//
+	// Source and test bed:
+	// https://gist.github.com/tschw/da10c43c467ce8afd0c4
+
+	vec2 cubeToUV( vec3 v, float texelSizeY ) {
+
+		// Number of texels to avoid at the edge of each square
+
+		vec3 absV = abs( v );
+
+		// Intersect unit cube
+
+		float scaleToCube = 1.0 / max( absV.x, max( absV.y, absV.z ) );
+		absV *= scaleToCube;
+
+		// Apply scale to avoid seams
+
+		// two texels less per square (one texel will do for NEAREST)
+		v *= scaleToCube * ( 1.0 - 2.0 * texelSizeY );
+
+		// Unwrap
+
+		// space: -1 ... 1 range for each square
+		//
+		// #X##		dim    := ( 4 , 2 )
+		//  # #		center := ( 1 , 1 )
+
+		vec2 planar = v.xy;
+
+		float almostATexel = 1.5 * texelSizeY;
+		float almostOne = 1.0 - almostATexel;
+
+		if ( absV.z &gt;= almostOne ) {
+
+			if ( v.z &gt; 0.0 )
+				planar.x = 4.0 - v.x;
+
+		} else if ( absV.x &gt;= almostOne ) {
+
+			float signX = sign( v.x );
+			planar.x = v.z * signX + 2.0 * signX;
+
+		} else if ( absV.y &gt;= almostOne ) {
+
+			float signY = sign( v.y );
+			planar.x = v.x + 2.0 * signY + 2.0;
+			planar.y = v.z * signY - 2.0;
+
+		}
+
+		// Transform to UV space
+
+		// scale := 0.5 / dim
+		// translate := ( center + 0.5 ) / dim
+		return vec2( 0.125, 0.25 ) * planar + vec2( 0.375, 0.75 );
+
+	}
+
+	float getPointShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord, float shadowCameraNear, float shadowCameraFar ) {
+
+		float shadow = 1.0;
+
+		// for point lights, the uniform @vShadowCoord is re-purposed to hold
+		// the vector from the light to the world-space position of the fragment.
+		vec3 lightToPosition = shadowCoord.xyz;
+		
+		float lightToPositionLength = length( lightToPosition );
+
+		if ( lightToPositionLength - shadowCameraFar &lt;= 0.0 &amp;&amp; lightToPositionLength - shadowCameraNear &gt;= 0.0 ) {
+
+			// dp = normalized distance from light to fragment position
+			float dp = ( lightToPositionLength - shadowCameraNear ) / ( shadowCameraFar - shadowCameraNear ); // need to clamp?
+			dp += shadowBias;
+
+			// bd3D = base direction 3D
+			vec3 bd3D = normalize( lightToPosition );
+
+			vec2 texelSize = vec2( 1.0 ) / ( shadowMapSize * vec2( 4.0, 2.0 ) );
+
+			#if defined( SHADOWMAP_TYPE_PCF ) || defined( SHADOWMAP_TYPE_PCF_SOFT ) || defined( SHADOWMAP_TYPE_VSM )
+
+				vec2 offset = vec2( - 1, 1 ) * shadowRadius * texelSize.y;
+
+				shadow = (
+					texture2DCompare( shadowMap, cubeToUV( bd3D + offset.xyy, texelSize.y ), dp ) +
+					texture2DCompare( shadowMap, cubeToUV( bd3D + offset.yyy, texelSize.y ), dp ) +
+					texture2DCompare( shadowMap, cubeToUV( bd3D + offset.xyx, texelSize.y ), dp ) +
+					texture2DCompare( shadowMap, cubeToUV( bd3D + offset.yyx, texelSize.y ), dp ) +
+					texture2DCompare( shadowMap, cubeToUV( bd3D, texelSize.y ), dp ) +
+					texture2DCompare( shadowMap, cubeToUV( bd3D + offset.xxy, texelSize.y ), dp ) +
+					texture2DCompare( shadowMap, cubeToUV( bd3D + offset.yxy, texelSize.y ), dp ) +
+					texture2DCompare( shadowMap, cubeToUV( bd3D + offset.xxx, texelSize.y ), dp ) +
+					texture2DCompare( shadowMap, cubeToUV( bd3D + offset.yxx, texelSize.y ), dp )
+				) * ( 1.0 / 9.0 );
+
+			#else // no percentage-closer filtering
+
+				shadow = texture2DCompare( shadowMap, cubeToUV( bd3D, texelSize.y ), dp );
+
+			#endif
+
+		}
+
+		return mix( 1.0, shadow, shadowIntensity );
+
+	}
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;shadowmask_pars_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;shadowmask_pars_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">float getShadowMask() {
+
+	float shadow = 1.0;
+
+	#ifdef USE_SHADOWMAP
+
+	#if NUM_DIR_LIGHT_SHADOWS &gt; 0
+
+	DirectionalLightShadow directionalLight;
+
+	#pragma unroll_loop_start
+	for ( int i = 0; i &lt; NUM_DIR_LIGHT_SHADOWS; i ++ ) {
+
+		directionalLight = directionalLightShadows[ i ];
+		shadow *= receiveShadow ? getShadow( directionalShadowMap[ i ], directionalLight.shadowMapSize, directionalLight.shadowIntensity, directionalLight.shadowBias, directionalLight.shadowRadius, vDirectionalShadowCoord[ i ] ) : 1.0;
+
+	}
+	#pragma unroll_loop_end
+
+	#endif
+
+	#if NUM_SPOT_LIGHT_SHADOWS &gt; 0
+
+	SpotLightShadow spotLight;
+
+	#pragma unroll_loop_start
+	for ( int i = 0; i &lt; NUM_SPOT_LIGHT_SHADOWS; i ++ ) {
+
+		spotLight = spotLightShadows[ i ];
+		shadow *= receiveShadow ? getShadow( spotShadowMap[ i ], spotLight.shadowMapSize, spotLight.shadowIntensity, spotLight.shadowBias, spotLight.shadowRadius, vSpotLightCoord[ i ] ) : 1.0;
+
+	}
+	#pragma unroll_loop_end
+
+	#endif
+
+	#if NUM_POINT_LIGHT_SHADOWS &gt; 0
+
+	PointLightShadow pointLight;
+
+	#pragma unroll_loop_start
+	for ( int i = 0; i &lt; NUM_POINT_LIGHT_SHADOWS; i ++ ) {
+
+		pointLight = pointLightShadows[ i ];
+		shadow *= receiveShadow ? getPointShadow( pointShadowMap[ i ], pointLight.shadowMapSize, pointLight.shadowIntensity, pointLight.shadowBias, pointLight.shadowRadius, vPointShadowCoord[ i ], pointLight.shadowCameraNear, pointLight.shadowCameraFar ) : 1.0;
+
+	}
+	#pragma unroll_loop_end
+
+	#endif
+
+	/*
+	#if NUM_RECT_AREA_LIGHTS &gt; 0
+
+		// TODO (abelnation): update shadow for Area light
+
+	#endif
+	*/
+
+	#endif
+
+	return shadow;
+
+}</code></pre>
+    </div><pre><code class="language-glsl">
+
+void main() {
+
+	</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;logdepthbuf_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;logdepthbuf_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#if defined( USE_LOGDEPTHBUF )
+
+	// Doing a strict comparison with == 1.0 can cause noise artifacts
+	// on some platforms. See issue #17623.
+	gl_FragDepth = vIsPerspective == 0.0 ? gl_FragCoord.z : log2( vFragDepth ) * logDepthBufFC * 0.5;
+
+#endif</code></pre>
+    </div><pre><code class="language-glsl">
+
+	gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) );
+
+	</code></pre><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;tonemapping_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;tonemapping_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#if defined( TONE_MAPPING )
+
+	gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+
+#endif</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;colorspace_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;colorspace_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">gl_FragColor = linearToOutputTexel( gl_FragColor );</code></pre>
+    </div><div class="chunk folded">
+    <pre class="include include-folded"><code class="language-glsl">#include &lt;fog_fragment&gt;</code></pre>
+    <pre class="include include-opened"><code class="language-glsl">// &lt;fog_fragment&gt;</code></pre>
+    <pre class="src"><code class="language-glsl">#ifdef USE_FOG
+
+	#ifdef FOG_EXP2
+
+		float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
+
+	#else
+
+		float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+
+	#endif
+
+	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
+
+#endif</code></pre>
+    </div><pre><code class="language-glsl">
+
+}
+</code></pre>
+                </div>
+            </section>
+        </article>
+        <script src="./script.js"></script>
+    </body>
+</html>

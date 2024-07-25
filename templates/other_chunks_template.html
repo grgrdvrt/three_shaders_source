@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Other Chunks</title>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css"
+        />
+        <link rel="stylesheet" href="./style.css" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/glsl.min.js"></script>
+
+        <script>
+            hljs.highlightAll();
+        </script>
+    </head>
+    <body class="otherChunks">
+        <nav>{{nav}}</nav>
+        <article>
+            <h1>Unused Chunks</h1>
+            <p>These chunks are not referenced directly by any shader.</p>
+            {{otherChunksContent}}
+        </article>
+        <script src="./script.js"></script>
+    </body>
+</html>
